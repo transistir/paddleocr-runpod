@@ -18,7 +18,13 @@ case "$DOCKER_IMAGE" in
   *) echo "DOCKER_IMAGE must use an explicit version tag." >&2; exit 1 ;;
 esac
 
-BASE_IMAGE="${BASE_IMAGE:-ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:paddleocr3.7-nvidia-gpu-offline}"
+BASE_IMAGE="${BASE_IMAGE:-ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-nvidia-gpu-offline}"
+
+if ! docker buildx imagetools inspect "$BASE_IMAGE" >/dev/null; then
+  echo "PaddleOCR base image could not be resolved: $BASE_IMAGE" >&2
+  echo "Set BASE_IMAGE to a published official tag or digest." >&2
+  exit 1
+fi
 
 docker buildx build \
   --platform linux/amd64 \
