@@ -1,0 +1,50 @@
+name: Compose
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate compose file
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Docker Compose version
+        run: docker compose version
+
+      - name: Provide non-secret env file for validation
+        # env_file: .env is referenced by docker-compose.yml; reuse the
+        # non-secret example so `docker compose config` succeeds in CI.
+        # A real local .env (with credentials) must remain gitignored.
+        run: cp .env.example .env
+
+      - name: Render and validate compose configuration
+        run: docker compose config
+
+  build:
+    name: Build worker image (manual)
+    runs-on: ubuntu-latest
+    # The Paddle GPU base image is large and is pulled from Baidu's registry;
+    # only build on manual trigger to avoid heavy pulls on every PR. The
+    # production build/push is performed by docker-deploy.yaml on version tags.
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 120
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Provide non-secret env file
+        run: cp .env.example .env
+
+      - name: Build image via compose
+        run: docker compose build

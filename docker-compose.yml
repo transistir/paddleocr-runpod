@@ -1,0 +1,25 @@
+# Local development stack for the PaddleOCR-VL RunPod worker.
+#
+# The production image build and publish is handled by
+# .github/workflows/docker-deploy.yaml on version tags. This file supports
+# local GPU development and is validated by .github/workflows/compose.yml.
+#
+# Validate:  docker compose config
+# Run:       docker compose --env-file .env up      (requires an NVIDIA runtime + GPU)
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:paddleocr3.7-nvidia-gpu-offline
+    image: runpod-paddleocr-vl:dev
+    init: true
+    env_file: .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: ["gpu"]
