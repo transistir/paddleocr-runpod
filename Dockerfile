@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
-# Official PaddleOCR-VL 3.7 offline NVIDIA image with model assets included.
-ARG BASE_IMAGE=ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:paddleocr3.7-nvidia-gpu-offline
+# Official PaddleOCR-VL offline NVIDIA image with model assets included.
+# Override BASE_IMAGE with a digest-pinned reference for approved releases.
+ARG BASE_IMAGE=ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-nvidia-gpu-offline
 FROM ${BASE_IMAGE}
 
 USER root
