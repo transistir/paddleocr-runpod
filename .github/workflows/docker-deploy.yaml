@@ -21,8 +21,9 @@ concurrency:
 env:
   IMAGE_NAME: runpod-paddleocr-vl
   # Optional repository variable PADDLEOCR_BASE_IMAGE can pin this upstream
-  # image by digest without adding another secret.
-  BASE_IMAGE: ${{ vars.PADDLEOCR_BASE_IMAGE || 'ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:paddleocr3.7-nvidia-gpu-offline' }}
+  # image by digest without adding another secret. The fallback is the
+  # currently documented official offline NVIDIA image.
+  BASE_IMAGE: ${{ vars.PADDLEOCR_BASE_IMAGE || 'ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-nvidia-gpu-offline' }}
 
 jobs:
   publish:
@@ -125,6 +126,26 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.2.0
 
+      - name: Verify PaddleOCR base image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3; do
+            if docker buildx imagetools inspect "${BASE_IMAGE}" >/dev/null; then
+              echo "Verified base image: ${BASE_IMAGE}"
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt 3 ]]; then
+              sleep "$((attempt * 5))"
+            fi
+          done
+
+          echo "::error::PaddleOCR base image could not be resolved: ${BASE_IMAGE}"
+          echo "::error::Set repository variable PADDLEOCR_BASE_IMAGE to a published tag or digest."
+          exit 1
+
       - name: Refuse mutable tag replacement
         shell: bash
         env:
@@ -152,6 +173,7 @@ jobs:
             org.opencontainers.image.title=PaddleOCR-VL RunPod worker
             org.opencontainers.image.description=Production-hardened PaddleOCR-VL-1.6 queue worker for RunPod Serverless
             org.opencontainers.image.version=${{ steps.version.outputs.value }}
+            org.opencontainers.image.base.name=${{ env.BASE_IMAGE }}
 
       - name: Build and push image
         id: build
@@ -197,6 +219,7 @@ jobs:
           {
             echo "## Docker image published"
             echo
+            echo "- Base image: \`${BASE_IMAGE}\`"
             echo "- Version tag: \`${IMAGE}:${VERSION}\`"
             echo "- Commit tag: \`${IMAGE}:sha-${GITHUB_SHA}\`"
             echo "- Digest: \`${DIGEST}\`"
