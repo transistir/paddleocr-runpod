@@ -1,0 +1,27 @@
+.git
+.github
+.env
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+*.pyc
+*.pyo
+*.zip
+.runpod-deploy.json
+smoke-output.json
+tests
+runpod
+scripts
+README.md
+VALIDATION.md
+pyproject.toml
+requirements-dev.txt
+# Prevent accidental inclusion of source documents and rasterized pages.
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.webp

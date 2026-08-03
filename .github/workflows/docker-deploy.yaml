@@ -1,0 +1,210 @@
+name: Build and publish PaddleOCR image
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image version, for example 3.0.1 (a leading v is allowed)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: runpod-paddleocr-vl
+  # Optional repository variable PADDLEOCR_BASE_IMAGE can pin this upstream
+  # image by digest without adding another secret.
+  BASE_IMAGE: ${{ vars.PADDLEOCR_BASE_IMAGE || 'ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:paddleocr3.7-nvidia-gpu-offline' }}
+
+jobs:
+  publish:
+    name: Test, build, and push
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve and validate version
+        id: version
+        shell: bash
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            version="${MANUAL_VERSION}"
+          else
+            version="${GITHUB_REF_NAME}"
+          fi
+
+          version="${version#v}"
+
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "::error::Version must be semantic, for example 3.0.1 or 3.0.1-rc.1"
+            exit 1
+          fi
+
+          echo "value=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate Docker Hub secrets
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "${DOCKERHUB_USERNAME}" ]] || {
+            echo "::error::Missing GitHub secret DOCKERHUB_USERNAME"
+            exit 1
+          }
+          [[ -n "${DOCKERHUB_TOKEN}" ]] || {
+            echo "::error::Missing GitHub secret DOCKERHUB_TOKEN"
+            exit 1
+          }
+
+      - name: Check base-image reproducibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${BASE_IMAGE}" != *@sha256:* ]]; then
+            echo "::warning::PADDLEOCR_BASE_IMAGE is not digest-pinned; the build is versioned, but the upstream base could change"
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --requirement requirements-dev.txt
+
+      - name: Run lint and unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check .
+          python -m unittest discover -s tests -v
+
+      # The Paddle offline base image is large. Removing unused preinstalled
+      # SDKs gives BuildKit enough working space on a standard GitHub runner.
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          docker system prune --all --force || true
+          df -h /
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Refuse mutable tag replacement
+        shell: bash
+        env:
+          IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+
+          for tag in "${VERSION}" "sha-${GITHUB_SHA}"; do
+            if docker buildx imagetools inspect "${IMAGE}:${tag}" >/dev/null 2>&1; then
+              echo "::error::Docker tag already exists and will not be overwritten: ${IMAGE}:${tag}"
+              exit 1
+            fi
+          done
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v6.2.0
+        with:
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.value }}
+            type=sha,prefix=sha-,format=long
+          labels: |
+            org.opencontainers.image.title=PaddleOCR-VL RunPod worker
+            org.opencontainers.image.description=Production-hardened PaddleOCR-VL-1.6 queue worker for RunPod Serverless
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          pull: true
+          push: true
+          build-args: |
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Verify published image
+        shell: bash
+        env:
+          IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          VERSION: ${{ steps.version.outputs.value }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Build did not return a valid image digest"
+            exit 1
+          }
+          docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+
+      - name: Write deployment reference
+        shell: bash
+        env:
+          IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          VERSION: ${{ steps.version.outputs.value }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          runpod_image="${IMAGE}:${VERSION}@${DIGEST}"
+
+          {
+            echo "## Docker image published"
+            echo
+            echo "- Version tag: \`${IMAGE}:${VERSION}\`"
+            echo "- Commit tag: \`${IMAGE}:sha-${GITHUB_SHA}\`"
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- RunPod deployment reference:"
+            echo
+            echo '```text'
+            echo "${runpod_image}"
+            echo '```'
+            echo
+            echo "Use this digest-pinned value as \`RUNPOD_IMAGE\` when running \`python scripts/deploy.py\`."
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -1,0 +1,46 @@
+{
+  "name": "paddleocr-vl-1-6",
+  "image": "ghcr.io/your-org/runpod-paddleocr-vl:3.0.0",
+  "args": "",
+  "disk": 50,
+  "ports": [],
+  "env": {
+    "ALLOWED_SOURCE_HOSTS": "ocr.example.org",
+    "PADDLE_DEVICE": "gpu:0",
+    "PADDLE_ENGINE": "paddle",
+    "MAX_INPUT_BYTES": "52428800",
+    "MAX_PDF_PAGES": "25",
+    "MAX_PDF_PAGE_EDGE_POINTS": "3600",
+    "MAX_PDF_PAGE_AREA_POINTS": "10000000",
+    "MAX_OUTPUT_BYTES": "8388608",
+    "DOWNLOAD_TIMEOUT_SECONDS": "120",
+    "MAX_REDIRECTS": "0",
+    "USE_DOC_ORIENTATION_CLASSIFY": "false",
+    "USE_DOC_UNWARPING": "false",
+    "USE_LAYOUT_DETECTION": "true",
+    "USE_CHART_RECOGNITION": "false",
+    "USE_SEAL_RECOGNITION": "false",
+    "TEMPERATURE": "0",
+    "MAX_NEW_TOKENS": "8192",
+    "LOG_LEVEL": "INFO",
+    "RUNPOD_LOG_LEVEL": "ERROR"
+  },
+  "gpu": {
+    "pools": [
+      "AMPERE_24",
+      "ADA_24"
+    ],
+    "count": 1
+  },
+  "workers": {
+    "min": 0,
+    "max": 2
+  },
+  "scaling": {
+    "type": "QUEUE_DELAY",
+    "value": 4,
+    "idleTimeout": 60
+  },
+  "timeout": 1800000,
+  "flashboot": "OFF"
+}

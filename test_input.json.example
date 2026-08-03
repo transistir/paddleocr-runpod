@@ -1,0 +1,9 @@
+{
+  "input": {
+    "file_url": "https://ocr.example.org/signed/document.pdf"
+  },
+  "policy": {
+    "executionTimeout": 1800000,
+    "ttl": 7200000
+  }
+}

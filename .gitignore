@@ -1,0 +1,43 @@
+# Secrets and local environment files.
+# `.env.example` is intentionally tracked as the shared template.
+.env
+.env.*
+!.env.example
+
+# Deployment runtime state produced by scripts/deploy.py and smoke_test.py.
+.runpod-deploy.json
+smoke-output.json
+
+# Real signed-input fixtures used for local manual runs; track only *.example.
+test_input.json
+
+# Python virtual environments, bytecode, and tooling caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.ruff_cache/
+.pytest_cache/
+
+# Editor, IDE, and operating-system artifacts.
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.AppleDouble
+Thumbs.db
+
+# Prevent accidental inclusion of source documents and rasterized pages.
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.webp
