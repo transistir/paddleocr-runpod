@@ -23,6 +23,7 @@ from worker_core import (
     new_workdir,
     prepare_pdf,
     result_to_markdown,
+    sanitizar_nao_finitos,
     validate_job_input,
 )
 
@@ -160,12 +161,27 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
                 },
                 SETTINGS.max_output_bytes,
             )
+            # Diagnóstico do retorno: o RunPod rejeita o job-done (400) quando o
+            # payload não sobrevive à serialização — NaN/Infinity passam pelo
+            # json.dumps padrão e viram JSON inválido. Medir aqui separa
+            # "payload inválido" de "lease perdido" sem adivinhar.
+            import json as _json
+
+            try:
+                tamanho = len(_json.dumps(output, allow_nan=False).encode("utf-8"))
+                nan_presente = False
+            except ValueError:
+                tamanho = len(_json.dumps(output).encode("utf-8"))
+                nan_presente = True
+                output = sanitizar_nao_finitos(output)
             log_event(
                 "job_completed",
                 job_id=job_id,
                 output_pages=len(markdown_pages),
                 inference_ms=inference_ms,
                 total_ms=total_ms,
+                payload_bytes=tamanho,
+                payload_nan=nan_presente,
             )
             return output
     except InputError as exc:
