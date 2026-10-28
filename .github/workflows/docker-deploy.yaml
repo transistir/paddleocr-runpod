@@ -23,7 +23,7 @@ env:
   # Optional repository variable PADDLEOCR_BASE_IMAGE can pin this upstream
   # image by digest without adding another secret. The fallback is the
   # currently documented official offline NVIDIA image.
-  BASE_IMAGE: ${{ vars.PADDLEOCR_BASE_IMAGE || 'ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-nvidia-gpu-offline' }}
+  BASE_IMAGE: ${{ vars.PADDLEOCR_BASE_IMAGE || 'luandrodd/runpod-paddleocr-vl@sha256:85eee095f90aaedc962df220fe61ec9c94aab87168c62a22dfd2f893d60c9a75' }}
 
 jobs:
   publish:

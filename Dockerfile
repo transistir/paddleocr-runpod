@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1.7
 # Official PaddleOCR-VL offline NVIDIA image with model assets included.
 # Override BASE_IMAGE with a digest-pinned reference for approved releases.
-ARG BASE_IMAGE=ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-nvidia-gpu-offline
+# Pinada por digest: a base "latest-*" mudou entre 08/2026 e 10/2026 (paddleocr 3.6.x)
+# e o handler deixou de funcionar em página densa. Esta é a camada do PoC (imagem 0.0.1).
+ARG BASE_IMAGE=luandrodd/runpod-paddleocr-vl@sha256:85eee095f90aaedc962df220fe61ec9c94aab87168c62a22dfd2f893d60c9a75
 FROM ${BASE_IMAGE}
 
 USER root
