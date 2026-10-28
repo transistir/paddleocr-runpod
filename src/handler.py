@@ -190,7 +190,15 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:
         # Never log URLs, OCR content, extracted values, or tracebacks.
         log_event("job_failed", job_id=job_id, error_type=type(exc).__name__)
-        raise RuntimeError("PADDLEOCR_INFERENCE_FAILED") from None
+        # DIAGNÓSTICO TEMPORÁRIO (não mergear): expõe tipo e mensagem da
+        # exceção para identificar por que o pipeline falha em documento real.
+        return {
+            "ok": False,
+            "error": {
+                "code": "DIAG_" + type(exc).__name__.upper()[:40],
+                "message": str(exc)[:400] or "(sem mensagem)",
+            },
+        }
 
 
 def serial_concurrency(_: int) -> int:
@@ -204,3 +212,4 @@ runpod.serverless.start(
         "concurrency_modifier": serial_concurrency,
     }
 )
+# diag 184804
