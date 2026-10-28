@@ -5,3 +5,4 @@ pypdf==6.14.2
 # latest-* passou a vir com 0.27.3 e o `pip check` do build aborta
 # (drift da base não pinada — ver README)
 typer>=0.20.0,<0.26.0
+pypdfium2>=4.30,<5

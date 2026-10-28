@@ -288,3 +288,47 @@ class SanitizacaoNaofinitosTest(unittest.TestCase):
 
         entrada = {"x": 1.25, "y": "texto", "z": [1, 2]}
         self.assertEqual(entrada, sanitizar_nao_finitos(entrada))
+
+
+class RenderPagesTest(unittest.TestCase):
+    """RENDER_DPI rasteriza página a página (página densa estoura o job)."""
+
+    def _pdf(self, tmp: str, paginas: int) -> Path:
+        from pypdf import PdfWriter
+
+        writer = PdfWriter()
+        for _ in range(paginas):
+            writer.add_blank_page(width=595, height=842)
+        destino = Path(tmp) / "doc.pdf"
+        with destino.open("wb") as stream:
+            writer.write(stream)
+        return destino
+
+    def test_gera_um_png_por_pagina(self):
+        import tempfile
+
+        from worker_core import render_pages
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = self._pdf(tmp, 3)
+            imagens = render_pages(pdf, Path(tmp) / "pages", 200)
+            self.assertEqual(len(imagens), 3)
+            self.assertTrue(all(caminho.is_file() for caminho in imagens))
+            self.assertEqual(imagens[0].name, "page-0001.png")
+
+    def test_dpi_zero_e_rejeitado(self):
+        from worker_core import render_pages
+
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(ValueError):
+            render_pages(Path(tmp) / "x.pdf", Path(tmp), 0)
+
+    def test_settings_le_render_dpi(self):
+        from worker_core import load_settings
+
+        base = {
+            "ALLOWED_SOURCE_HOSTS": "example.com",
+            "RENDER_DPI": "200",
+        }
+        with patch.dict(os.environ, base, clear=False):
+            settings = load_settings()
+        self.assertEqual(settings.render_dpi, 200)

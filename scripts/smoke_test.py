@@ -14,7 +14,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 STATE_FILE = ROOT / ".runpod-deploy.json"
 TERMINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"}
-WORKER_VERSION = "3.0.0"
+WORKER_VERSION = "3.1.0"
 
 
 def load_dotenv(path: Path) -> None:
