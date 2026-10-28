@@ -1,5 +1,17 @@
 # Runpod Serverless PaddleOCR-VL-1.6 worker
 
+> **Requisito medido (27/10/2026): use pools de 80 GB.** Em pools de 24 GB
+> (`AMPERE_24`/`ADA_24`) o container é morto por OOM ao carregar o modelo (~1B parâmetros)
+> **antes de emitir qualquer stdout** — o RunPod entra em `start container` → `stop
+> container` em loop e os jobs ficam em `IN_QUEUE` indefinidamente. Com `AMPERE_80` /
+> `ADA_80_PRO` o mesmo job completa (`ok: true`, ~1,6 s por página).
+> Ver `docs/produto3/VL-RUNPOD.md` no repo do serviço OCR para a medição completa.
+>
+> **`scripts/deploy.py` está desatualizado para a API atual do RunPod:** a criação do
+> template funciona, mas a do endpoint falha com `422` (o schema passou a exigir `type`
+> — `QUEUE`/`LOAD_BALANCER` — e `scaling.type: QUEUE_DELAY` com `queueDelay` numérico).
+
+
 A small Runpod **queue-based Serverless** worker that accepts one signed HTTPS PDF URL and returns page-delimited Markdown from the complete PaddleOCR-VL-1.6 pipeline.
 
 ## Status and intended load
