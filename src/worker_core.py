@@ -471,3 +471,21 @@ def new_workdir() -> tempfile.TemporaryDirectory[str]:
     root = Path(os.getenv("TMPDIR", "/tmp/paddleocr-runpod"))
     root.mkdir(parents=True, exist_ok=True)
     return tempfile.TemporaryDirectory(prefix="job-", dir=root)
+
+
+def sanitizar_nao_finitos(valor: object) -> object:
+    """Troca NaN/Infinity por None, recursivamente.
+
+    `json.dumps` os aceita por padrão e produz JSON que o servidor recusa (400
+    no job-done). Aqui a normalização é explícita em vez de silenciosa: o
+    handler registra `payload_nan` no log quando isso acontece.
+    """
+    import math
+
+    if isinstance(valor, float):
+        return valor if math.isfinite(valor) else None
+    if isinstance(valor, dict):
+        return {chave: sanitizar_nao_finitos(item) for chave, item in valor.items()}
+    if isinstance(valor, (list, tuple)):
+        return [sanitizar_nao_finitos(item) for item in valor]
+    return valor

@@ -263,3 +263,28 @@ class WorkerCoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SanitizacaoNaofinitosTest(unittest.TestCase):
+    """RunPod recusa o job-done (400) quando o payload tem NaN/Infinity.
+
+    `json.dumps` os aceita por padrão e gera JSON inválido; a sanitização é
+    explícita e o handler loga `payload_nan=True` quando ela é necessária.
+    """
+
+    def test_nan_e_infinitos_viram_none(self):
+        import json
+
+        from worker_core import sanitizar_nao_finitos
+
+        entrada = {"a": float("nan"), "b": [float("inf"), 1.5], "c": {"d": float("-inf")}}
+        saida = sanitizar_nao_finitos(entrada)
+        self.assertEqual({"a": None, "b": [None, 1.5], "c": {"d": None}}, saida)
+        # o resultado é serializável sem allow_nan
+        self.assertIn('"a": null', json.dumps(saida, allow_nan=False))
+
+    def test_valores_finitos_passam_intactos(self):
+        from worker_core import sanitizar_nao_finitos
+
+        entrada = {"x": 1.25, "y": "texto", "z": [1, 2]}
+        self.assertEqual(entrada, sanitizar_nao_finitos(entrada))
