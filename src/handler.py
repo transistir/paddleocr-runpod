@@ -22,6 +22,7 @@ from worker_core import (
     load_settings,
     new_workdir,
     prepare_pdf,
+    render_pages,
     result_to_markdown,
     sanitizar_nao_finitos,
     validate_job_input,
@@ -115,25 +116,37 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
 
             progress(job, "Running PaddleOCR-VL-1.6")
             inference_started = time.perf_counter()
-            result_iterator = PIPELINE.predict_iter(
-                input=str(prepared.path),
-                temperature=SETTINGS.temperature,
-                max_new_tokens=SETTINGS.max_new_tokens,
-            )
+            if SETTINGS.render_dpi > 0:
+                entradas = [
+                    str(caminho)
+                    for caminho in render_pages(
+                        prepared.path, workdir / "pages", SETTINGS.render_dpi
+                    )
+                ]
+            else:
+                entradas = [str(prepared.path)]
+
             markdown_pages: list[str] = []
-            for index, result in enumerate(result_iterator, start=1):
-                page_markdown = result_to_markdown(
-                    result,
-                    workdir / "artifacts" / f"page-{index:04d}",
-                    max_output_bytes=SETTINGS.max_output_bytes,
-                )
-                ensure_markdown_budget(
-                    markdown_pages,
-                    page_markdown,
-                    index,
-                    SETTINGS.max_output_bytes,
-                )
-                markdown_pages.append(page_markdown)
+            index = 0
+            for entrada in entradas:
+                for result in PIPELINE.predict_iter(
+                    input=entrada,
+                    temperature=SETTINGS.temperature,
+                    max_new_tokens=SETTINGS.max_new_tokens,
+                ):
+                    index += 1
+                    page_markdown = result_to_markdown(
+                        result,
+                        workdir / "artifacts" / f"page-{index:04d}",
+                        max_output_bytes=SETTINGS.max_output_bytes,
+                    )
+                    ensure_markdown_budget(
+                        markdown_pages,
+                        page_markdown,
+                        index,
+                        SETTINGS.max_output_bytes,
+                    )
+                    markdown_pages.append(page_markdown)
 
             inference_ms = int((time.perf_counter() - inference_started) * 1000)
             if not markdown_pages:
@@ -145,7 +158,7 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
                     "ok": True,
                     "model": "PaddleOCR-VL-1.6",
                     "pipeline_version": "v1.6",
-                    "worker_version": "3.0.0",
+                    "worker_version": "3.1.0",
                     "source": {
                         "sha256": prepared.sha256,
                         "byte_size": prepared.byte_size,
@@ -190,7 +203,15 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:
         # Never log URLs, OCR content, extracted values, or tracebacks.
         log_event("job_failed", job_id=job_id, error_type=type(exc).__name__)
-        raise RuntimeError("PADDLEOCR_INFERENCE_FAILED") from None
+        # DIAGNÓSTICO TEMPORÁRIO (não mergear): expõe tipo e mensagem da
+        # exceção para identificar por que o pipeline falha em documento real.
+        return {
+            "ok": False,
+            "error": {
+                "code": "DIAG_" + type(exc).__name__.upper()[:40],
+                "message": str(exc)[:400] or "(sem mensagem)",
+            },
+        }
 
 
 def serial_concurrency(_: int) -> int:
@@ -204,3 +225,4 @@ runpod.serverless.start(
         "concurrency_modifier": serial_concurrency,
     }
 )
+# diag 184804

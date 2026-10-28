@@ -75,7 +75,7 @@ cp .env.example .env
 Set at minimum:
 
 ```dotenv
-DOCKER_IMAGE=ghcr.io/YOUR_ORG/runpod-paddleocr-vl:3.0.0
+DOCKER_IMAGE=ghcr.io/YOUR_ORG/runpod-paddleocr-vl:3.1.0
 RUNPOD_API_KEY=...
 ALLOWED_SOURCE_HOSTS=your-worker.example.workers.dev
 ```
@@ -151,7 +151,7 @@ Align the signed-URL lifetime with the submitted job TTL. A shorter URL can caus
   "ok": true,
   "model": "PaddleOCR-VL-1.6",
   "pipeline_version": "v1.6",
-  "worker_version": "3.0.0",
+  "worker_version": "3.1.0",
   "source": {
     "sha256": "...",
     "byte_size": 12345,
@@ -226,6 +226,7 @@ The Dockerfile retains the official image's root runtime because Paddle's docume
 | `MAX_OUTPUT_BYTES` | `8388608` | 8 MiB serialized response cap |
 | `MAX_REDIRECTS` | `0` | safest redirect policy |
 | `MAX_NEW_TOKENS` | `8192` | bounded VLM generation per page |
+| `RENDER_DPI` | `0` | rasteriza cada página nesta resolução antes de inferir (`0` = o pipeline rasteriza o PDF). Página densa em resolução nativa estoura o orçamento de tokens e o job não termina: use `200` |
 | `RUNPOD_LOG_LEVEL` | `ERROR` | suppress verbose SDK diagnostics |
 
 Orientation correction, unwarping, chart recognition, and seal recognition are fixed endpoint policy values. Keep them disabled until representative measurements show a need; callers cannot change them per job. FlashBoot is also disabled by default because it retains worker state for faster revival; enable it only after confirming that its retention behavior is acceptable for the document-governance policy.

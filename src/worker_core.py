@@ -48,6 +48,11 @@ class Settings:
     use_seal_recognition: bool = False
     temperature: float = 0.0
     max_new_tokens: int = 8192
+    # 0 = o pipeline rasteriza o PDF sozinho (comportamento antigo).
+    # >0 = rasterizamos página a página nesta resolução antes de inferir:
+    # página densa (matrícula escaneada) em resolução nativa estoura o
+    # max_new_tokens e o job inteiro não termina.
+    render_dpi: int = 0
 
 
 @dataclass(frozen=True)
@@ -152,6 +157,7 @@ def load_settings() -> Settings:
         use_seal_recognition=_env_bool("USE_SEAL_RECOGNITION", False),
         temperature=_env_float("TEMPERATURE", 0.0, minimum=0.0, maximum=2.0),
         max_new_tokens=_env_int("MAX_NEW_TOKENS", 8192, minimum=256, maximum=32768),
+        render_dpi=_env_int("RENDER_DPI", 0, minimum=0, maximum=600),
     )
 
 
@@ -222,7 +228,7 @@ def validate_source_url(
 def download_pdf(url: str, destination: Path, settings: Settings) -> int:
     session = requests.Session()
     session.trust_env = False
-    session.headers.update({"User-Agent": "runpod-paddleocr-vl/3.0.0"})
+    session.headers.update({"User-Agent": "runpod-paddleocr-vl/3.1.0"})
     current_url = url
     deadline = time.monotonic() + settings.download_timeout_seconds
     try:
@@ -489,3 +495,34 @@ def sanitizar_nao_finitos(valor: object) -> object:
     if isinstance(valor, (list, tuple)):
         return [sanitizar_nao_finitos(item) for item in valor]
     return valor
+
+
+def render_pages(pdf_path: Path, output_dir: Path, dpi: int) -> list[Path]:
+    """Rasteriza cada página do PDF em PNG na resolução pedida.
+
+    Motivo: página de matrícula escaneada tem carimbo, brasão e texto em
+    diagonal. Em resolução nativa o VL gera tantos tokens que o job não
+    termina dentro do timeout. Rasterizar em DPI controlado também permite
+    isolar a falha por página.
+    """
+    import pypdfium2 as pdfium
+
+    if dpi <= 0:
+        raise ValueError("dpi deve ser positivo")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    destinos: list[Path] = []
+    documento = pdfium.PdfDocument(str(pdf_path))
+    try:
+        escala = dpi / 72
+        for indice in range(len(documento)):
+            pagina = documento[indice]
+            try:
+                imagem = pagina.render(scale=escala)
+                destino = output_dir / f"page-{indice + 1:04d}.png"
+                imagem.to_pil().save(destino, format="PNG")
+                destinos.append(destino)
+            finally:
+                pagina.close()
+    finally:
+        documento.close()
+    return destinos
