@@ -158,6 +158,7 @@ def runtime_env() -> dict[str, str]:
         "USE_SEAL_RECOGNITION": "false",
         "TEMPERATURE": "0",
         "MAX_NEW_TOKENS": "8192",
+        "RENDER_DPI": "0",
         "LOG_LEVEL": "INFO",
         "RUNPOD_LOG_LEVEL": "ERROR",
     }
