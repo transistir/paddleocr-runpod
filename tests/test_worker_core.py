@@ -261,10 +261,6 @@ class WorkerCoreTests(unittest.TestCase):
             enforce_output_limit({"ok": True, "markdown": "x" * 2000}, 500)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class SanitizacaoNaofinitosTest(unittest.TestCase):
     """RunPod recusa o job-done (400) quando o payload tem NaN/Infinity.
 
@@ -332,3 +328,43 @@ class RenderPagesTest(unittest.TestCase):
         with patch.dict(os.environ, base, clear=False):
             settings = load_settings()
         self.assertEqual(settings.render_dpi, 200)
+
+
+class PdfMagicTest(unittest.TestCase):
+    """Download que devolve HTML não pode virar {"ok": false} sem código.
+
+    Foi a causa do diagnóstico cego de 28/10: o worker baixava a página de login
+    do Cloudflare Access no lugar do PDF.
+    """
+
+    def test_html_e_rejeitado_com_codigo_invalid_pdf(self):
+        from worker_core import InputError, ensure_pdf_magic
+
+        with tempfile.TemporaryDirectory() as tmp:
+            arquivo = Path(tmp) / "source.pdf"
+            arquivo.write_bytes(b"<html><head><title>302 Found</title></head></html>")
+            with self.assertRaises(InputError) as ctx:
+                ensure_pdf_magic(arquivo)
+            self.assertEqual(ctx.exception.code, "INVALID_PDF")
+            self.assertFalse(arquivo.exists(), "arquivo inválido deve ser removido")
+
+    def test_pdf_valido_passa(self):
+        from worker_core import ensure_pdf_magic
+
+        with tempfile.TemporaryDirectory() as tmp:
+            arquivo = Path(tmp) / "source.pdf"
+            arquivo.write_bytes(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj\n")
+            ensure_pdf_magic(arquivo)
+            self.assertTrue(arquivo.exists())
+
+    def test_pdf_com_lixo_antes_do_magic_passa(self):
+        from worker_core import ensure_pdf_magic
+
+        with tempfile.TemporaryDirectory() as tmp:
+            arquivo = Path(tmp) / "source.pdf"
+            arquivo.write_bytes(b"\xef\xbb\xbf%PDF-1.4\n")
+            ensure_pdf_magic(arquivo)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -225,6 +225,21 @@ def validate_source_url(
     return url
 
 
+def ensure_pdf_magic(path: Path) -> None:
+    """Garante que o arquivo baixado é PDF antes de qualquer parse.
+
+    Sem isto, um host que devolve HTML (ex.: página de login de proxy/SSO) cai no
+    parser de PDF e escapa como exceção genérica no handler — o cliente recebe
+    {"ok": false} sem código, e o diagnóstico fica cego.
+    """
+    with path.open("rb") as stream:
+        cabecalho = stream.read(1024)
+    if b"%PDF-" in cabecalho:
+        return
+    path.unlink(missing_ok=True)
+    raise InputError("INVALID_PDF", "The source is not a PDF document.")
+
+
 def download_pdf(url: str, destination: Path, settings: Settings) -> int:
     session = requests.Session()
     session.trust_env = False
@@ -314,6 +329,7 @@ def download_pdf(url: str, destination: Path, settings: Settings) -> int:
                 if total == 0:
                     destination.unlink(missing_ok=True)
                     raise InputError("EMPTY_FILE", "The source PDF is empty.")
+                ensure_pdf_magic(destination)
                 return total
         raise InputError("TOO_MANY_REDIRECTS", "The source URL redirected more than allowed.")
     finally:
